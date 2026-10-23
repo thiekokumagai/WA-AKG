@@ -65,9 +65,20 @@ export async function runAutoMigration(): Promise<void> {
             // PostgreSQL Migration Handler
             try {
                 await prisma.$executeRawUnsafe(`ALTER TYPE "Role" ADD VALUE IF NOT EXISTS 'USER';`);
-                const updated = await prisma.$executeRawUnsafe(`UPDATE "User" SET "role" = 'USER' WHERE "role" = 'OWNER';`);
-                if (updated > 0) {
-                    logger.success("Database", `PostgreSQL: Migrated ${updated} user(s) from 'OWNER' to 'USER'.`);
+                const hasOwner: any[] = await prisma.$queryRawUnsafe(`
+                    SELECT 1 
+                    FROM pg_type t 
+                    JOIN pg_enum e ON t.oid = e.enumtypid 
+                    WHERE t.typname = 'Role' AND e.enumlabel = 'OWNER';
+                `);
+
+                if (Array.isArray(hasOwner) && hasOwner.length > 0) {
+                    const updated = await prisma.$executeRawUnsafe(`
+                        UPDATE "User" SET "role" = 'USER'::"Role" WHERE "role"::text = 'OWNER';
+                    `);
+                    if (updated > 0) {
+                        logger.success("Database", `PostgreSQL: Migrated ${updated} user(s) from 'OWNER' to 'USER'.`);
+                    }
                 }
             } catch {
                 // Ignore if already migrated or table not initialized yet

@@ -75,8 +75,19 @@ async function runAutoMigration() {
             try {
                 // Add USER to enum if missing
                 await prisma.$executeRawUnsafe(`ALTER TYPE "Role" ADD VALUE IF NOT EXISTS 'USER';`);
-                const updated = await prisma.$executeRawUnsafe(`UPDATE "User" SET "role" = 'USER' WHERE "role" = 'OWNER';`);
-                console.log(`✓ PostgreSQL: Migrated ${updated} user(s) from 'OWNER' to 'USER'.`);
+                const hasOwner = await prisma.$queryRawUnsafe(`
+                    SELECT 1 
+                    FROM pg_type t 
+                    JOIN pg_enum e ON t.oid = e.enumtypid 
+                    WHERE t.typname = 'Role' AND e.enumlabel = 'OWNER';
+                `);
+
+                if (Array.isArray(hasOwner) && hasOwner.length > 0) {
+                    const updated = await prisma.$executeRawUnsafe(`
+                        UPDATE "User" SET "role" = 'USER'::"Role" WHERE "role"::text = 'OWNER';
+                    `);
+                    console.log(`✓ PostgreSQL: Migrated ${updated} user(s) from 'OWNER' to 'USER'.`);
+                }
             } catch (pgErr) {
                 // PostgreSQL enum might already be migrated or table not initialized yet
             }
