@@ -40,26 +40,65 @@ export class ChatService {
         if (before) qParams.push(new Date(before));
         qParams.push(limit);
 
+        const dbUrl = process.env.DATABASE_URL || "";
+        const isPostgres = dbUrl.startsWith("postgres://") || dbUrl.startsWith("postgresql://");
+
+        let rawQuery: string;
+        if (isPostgres) {
+            let filterClause = "";
+            if (filter === "all") {
+                filterClause = `AND m1."remoteJid" NOT LIKE '%@broadcast'`;
+            } else if (filter === "private") {
+                filterClause = `AND m1."remoteJid" NOT LIKE '%@g.us' AND m1."remoteJid" NOT LIKE '%@broadcast' AND m1."remoteJid" NOT LIKE '%@newsletter'`;
+            } else if (filter === "groups") {
+                filterClause = `AND m1."remoteJid" LIKE '%@g.us'`;
+            }
+
+            let paramIdx = 1;
+            const p1 = `$${paramIdx++}`;
+            const p2 = `$${paramIdx++}`;
+            const pBefore = before ? `$${paramIdx++}` : null;
+            const pLimit = `$${paramIdx++}`;
+
+            rawQuery = `
+                SELECT m1."remoteJid", m1."content", m1."timestamp", m1."type"
+                FROM "Message" m1
+                INNER JOIN (
+                    SELECT "remoteJid", MAX("timestamp") as max_ts
+                    FROM "Message"
+                    WHERE "sessionId" = ${p1}
+                    GROUP BY "remoteJid"
+                ) m2 ON m1."remoteJid" = m2."remoteJid" AND m1."timestamp" = m2.max_ts
+                WHERE m1."sessionId" = ${p2}
+                ${pBefore ? `AND m1."timestamp" < ${pBefore}` : ''}
+                ${filterClause}
+                ORDER BY m1."timestamp" DESC
+                LIMIT ${pLimit}
+            `;
+        } else {
+            rawQuery = `
+                SELECT m1.remoteJid, m1.content, m1.timestamp, m1.type
+                FROM \`Message\` m1
+                INNER JOIN (
+                    SELECT remoteJid, MAX(timestamp) as max_ts
+                    FROM \`Message\`
+                    WHERE sessionId = ?
+                    GROUP BY remoteJid
+                ) m2 ON m1.remoteJid = m2.remoteJid AND m1.timestamp = m2.max_ts
+                WHERE m1.sessionId = ?
+                ${before ? 'AND m1.timestamp < ?' : ''}
+                ${filter && Object.hasOwn(CHAT_FILTER_SQL, filter) ? CHAT_FILTER_SQL[filter] : ''}
+                ORDER BY m1.timestamp DESC
+                LIMIT ?
+            `;
+        }
+
         const rawLastMessages = await prisma.$queryRawUnsafe<Array<{
             remoteJid: string;
             content: string | null;
             timestamp: Date;
             type: string;
-        }>>(`
-            SELECT m1.remoteJid, m1.content, m1.timestamp, m1.type
-            FROM \`Message\` m1
-            INNER JOIN (
-                SELECT remoteJid, MAX(timestamp) as max_ts
-                FROM \`Message\`
-                WHERE sessionId = ?
-                GROUP BY remoteJid
-            ) m2 ON m1.remoteJid = m2.remoteJid AND m1.timestamp = m2.max_ts
-            WHERE m1.sessionId = ?
-            ${before ? 'AND m1.timestamp < ?' : ''}
-            ${filter && Object.hasOwn(CHAT_FILTER_SQL, filter) ? CHAT_FILTER_SQL[filter] : ''}
-            ORDER BY m1.timestamp DESC
-            LIMIT ?
-        `, ...qParams);
+        }>>(rawQuery, ...qParams);
 
         // Fast return if no messages
         if (rawLastMessages.length === 0) return [];
