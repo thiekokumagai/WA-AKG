@@ -386,6 +386,15 @@ export async function testWebhook(webhookId: string, url: string, secret?: strin
  */
 export async function downloadAndSaveMedia(message: WAMessage, sessionId: string): Promise<string | null> {
     try {
+        // Check if automatic media download/storage is disabled via environment
+        if (
+            process.env.AUTO_DOWNLOAD_MEDIA === "false" ||
+            process.env.ENABLE_MEDIA_STORAGE === "false" ||
+            process.env.ENABLE_MEDIA_DOWNLOAD === "false"
+        ) {
+            return null;
+        }
+
         const messageContent = normalizeMessageContent(message.message);
         if (!messageContent) {
             logger.debug("Media", "No content normalized");
