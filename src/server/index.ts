@@ -13,8 +13,8 @@ import { runAutoMigration } from "../lib/auto-migrate";
 import pkg from "../../package.json";
 
 const dev = process.env.NODE_ENV !== "production";
-const hostname = process.env.HOSTNAME || "localhost";
-const port = parseInt(process.env.PORT || "3030", 10);
+const hostname = process.env.HOSTNAME || "0.0.0.0";
+const port = parseInt(process.env.PORT || "3000", 10);
 
 const INSECURE_AUTH_SECRETS = [
   "change-me",
@@ -101,7 +101,7 @@ app.prepare().then(async () => {
   server.keepAliveTimeout = 120 * 1000; // 120 seconds
   server.headersTimeout = 120 * 1000; // 120 seconds
 
-  server.listen(port, () => {
+  server.listen(port, "0.0.0.0", () => {
     logger.banner(pkg.name.toUpperCase(), pkg.version, port);
 
     // --- WA-AKG Monitor Heartbeat ---
