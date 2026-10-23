@@ -97,12 +97,15 @@ export const logger = {
     /** Print a fancy startup banner */
     banner(name: string, version: string, port: number | string) {
         const line = "─".repeat(42);
+        const serverUrl = process.env.BASE_URL 
+            ? process.env.BASE_URL.replace(/\/+$/, "")
+            : `http://localhost:${port}`;
         console.log("");
         console.log(`  ${c.cyan}${line}${c.reset}`);
         console.log(`  ${c.cyan}│${c.reset}                                          ${c.cyan}│${c.reset}`);
         console.log(`  ${c.cyan}│${c.reset}   ${c.bold}${c.brightCyan}⚡ ${name}${c.reset}  ${c.dim}v${version}${c.reset}${" ".repeat(Math.max(0, 26 - name.length - version.length))}${c.cyan}│${c.reset}`);
         console.log(`  ${c.cyan}│${c.reset}                                          ${c.cyan}│${c.reset}`);
-        console.log(`  ${c.cyan}│${c.reset}   ${c.green}● Server${c.reset}  ${c.dim}http://localhost:${port}${c.reset}${" ".repeat(Math.max(0, 20 - String(port).length))}${c.cyan}│${c.reset}`);
+        console.log(`  ${c.cyan}│${c.reset}   ${c.green}● Server${c.reset}  ${c.dim}${serverUrl}${c.reset}`);
         console.log(`  ${c.cyan}│${c.reset}   ${c.blue}● Node${c.reset}    ${c.dim}${process.version}${c.reset}${" ".repeat(Math.max(0, 24 - process.version.length))}${c.cyan}│${c.reset}`);
         console.log(`  ${c.cyan}│${c.reset}   ${c.magenta}● Env${c.reset}     ${c.dim}${process.env.NODE_ENV || "development"}${c.reset}${" ".repeat(Math.max(0, 24 - (process.env.NODE_ENV || "development").length))}${c.cyan}│${c.reset}`);
         console.log(`  ${c.cyan}│${c.reset}                                          ${c.cyan}│${c.reset}`);
